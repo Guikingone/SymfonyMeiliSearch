@@ -19,6 +19,7 @@ use App\Form\CommentType;
 use App\Repository\PostRepository;
 use App\Repository\TagRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Meilisearch\Bundle\SearchService;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -73,23 +74,16 @@ class BlogController extends AbstractController
      * See https://symfony.com/doc/current/bundles/SensioFrameworkExtraBundle/annotations/converters.html
      */
     #[Route('/posts/{slug}', name: 'blog_post', methods: ['GET'])]
-    public function postShow(Post $post): Response
-    {
-        // Symfony's 'dump()' function is an improved version of PHP's 'var_dump()' but
-        // it's not available in the 'prod' environment to prevent leaking sensitive information.
-        // It can be used both in PHP files and Twig templates, but it requires to
-        // have enabled the DebugBundle. Uncomment the following line to see it in action:
-        //
-        // dump($post, $this->getUser(), new \DateTime());
-        //
-        // The result will be displayed either in the Symfony Profiler or in the stream output.
-        // See https://symfony.com/doc/current/profiler.html
-        // See https://symfony.com/doc/current/templates.html#the-dump-twig-utilities
-        //
-        // You can also leverage Symfony's 'dd()' function that dumps and
-        // stops the execution
+    public function postShow(
+        string $slug,
+        SearchService $searchService,
+        EntityManagerInterface $entityManager
+    ): Response {
+        $posts = $searchService->search($entityManager, Post::class, $slug, [
+            'filter' => sprintf('slug = "%s"', $slug),
+        ]);
 
-        return $this->render('blog/post_show.html.twig', ['post' => $post]);
+        return $this->render('blog/post_show.html.twig', ['post' => $posts[0]]);
     }
 
     /**
@@ -155,6 +149,8 @@ class BlogController extends AbstractController
     #[Route('/search', name: 'blog_search', methods: ['GET'])]
     public function search(Request $request): Response
     {
-        return $this->render('blog/search.html.twig', ['query' => (string) $request->query->get('q', '')]);
+        return $this->render('blog/search.html.twig', [
+            'query' => (string) $request->query->get('q', ''),
+        ]);
     }
 }
